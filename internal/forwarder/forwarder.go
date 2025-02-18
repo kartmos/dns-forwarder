@@ -11,7 +11,7 @@ import (
 	"github.com/spf13/viper"
 )
 
-type Forward struct {
+type FrdConfig struct {
 	Port       int
 	Forwarding map[string]string
 }
@@ -20,7 +20,7 @@ func HandleRequest(conn *net.UDPConn, addr *net.UDPAddr, request []byte, dnsServ
 	ctx, cancel := context.WithTimeout(context.Background(), 5*time.Second)
 	defer cancel()
 	// Перенаправление запроса на DNS-сервер
-	response, err := ForwardToDNSServer(ctx, request, dnsServer)
+	response, err := forwardToDNSServer(ctx, request, dnsServer)
 	if err != nil {
 		log.Printf("[DO] Cancel request -> %s", err)
 		cancel()
@@ -33,7 +33,7 @@ func HandleRequest(conn *net.UDPConn, addr *net.UDPAddr, request []byte, dnsServ
 	return
 }
 
-func CheckConfig(config *Forward) {
+func CheckConfig(config *FrdConfig) {
 	viper.OnConfigChange(func(e fsnotify.Event) {
 		if e.Op&fsnotify.Write == fsnotify.Write {
 			if err := viper.ReadInConfig(); err != nil {
@@ -59,7 +59,7 @@ func CheckConfig(config *Forward) {
 	config.Forwarding = viper.GetStringMapString("forwarding")
 }
 
-func ForwardToDNSServer(parent context.Context, request []byte, dnsServer string) ([]byte, error) {
+func forwardToDNSServer(parent context.Context, request []byte, dnsServer string) ([]byte, error) {
 
 	ctx, cancel := context.WithCancel(parent)
 	defer cancel()

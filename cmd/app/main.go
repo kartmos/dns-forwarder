@@ -12,14 +12,9 @@ func init() {
 	viper.SetConfigFile("config/config.yaml")
 }
 
-type Forward struct {
-	Port       int
-	Forwarding map[string]string
-}
-
 func main() {
 
-	var Config forwarder.Forward
+	var Config forwarder.FrdConfig
 	forwarder.CheckConfig(&Config)
 
 	// Запуск UDP-сервера
