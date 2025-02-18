@@ -4,6 +4,8 @@ import (
 	"log"
 	"net"
 
+	"github.com/kartmos/dns-forwarder/internal/forwarder"
+
 	"github.com/spf13/viper"
 )
 
