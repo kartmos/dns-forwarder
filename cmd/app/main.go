@@ -19,7 +19,7 @@ type Forward struct {
 
 func main() {
 
-	var Config Forward
+	var Config forwarder.Forward
 	forwarder.CheckConfig(&Config)
 
 	// Запуск UDP-сервера
