@@ -5,18 +5,11 @@ import (
 	"log"
 	"net"
 	"time"
-
-	"github.com/kartmos/dns-forwarder/cmd/dns-forwarder"
-
+	"github.com/kartmos/dns-forwarder.git/cmd/app"
 	"github.com/fsnotify/fsnotify"
 	"github.com/miekg/dns"
 	"github.com/spf13/viper"
 )
-
-type Forward struct {
-	Port       int
-	Forwarding map[string]string
-}
 
 func HandleRequest(conn *net.UDPConn, addr *net.UDPAddr, request []byte, dnsServer string) {
 	ctx, cancel := context.WithTimeout(context.Background(), 5*time.Second)
@@ -35,7 +28,7 @@ func HandleRequest(conn *net.UDPConn, addr *net.UDPAddr, request []byte, dnsServ
 	return
 }
 
-func CheckConfig(config *Forward) {
+func CheckConfig(config *app.Forward) {
 	viper.OnConfigChange(func(e fsnotify.Event) {
 		if e.Op&fsnotify.Write == fsnotify.Write {
 			if err := viper.ReadInConfig(); err != nil {

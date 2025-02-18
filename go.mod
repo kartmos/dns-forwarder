@@ -1,9 +1,9 @@
-module cmd/dns-forwarder/main.go
+module github.com/kartmos/dns-forwarder.git
 
 go 1.24.0
 
 require (
-	github.com/fsnotify/fsnotify v1.7.0
+	github.com/fsnotify/fsnotify v1.8.0
 	github.com/miekg/dns v1.1.63
 	github.com/spf13/viper v1.19.0
 )

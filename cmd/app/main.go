@@ -4,8 +4,7 @@ import (
 	"log"
 	"net"
 
-	"github.com/kartmos/dns-forwarder/internal/forwarder"
-
+	"github.com/kartmos/dns-forwarder.git/internal/forwarder"
 	"github.com/spf13/viper"
 )
 
@@ -13,13 +12,18 @@ func init() {
 	viper.SetConfigFile("config/config.yaml")
 }
 
+type Forward struct {
+	Port       int
+	Forwarding map[string]string
+}
+
 func main() {
 
-	var config Forward
-	CheckConfig(&config)
+	var Config Forward
+	forwarder.CheckConfig(&Config)
 
 	// Запуск UDP-сервера
-	addr := net.UDPAddr{Port: config.Port}
+	addr := net.UDPAddr{Port: Config.Port}
 	conn, err := net.ListenUDP("udp", &addr)
 	if err != nil {
 		log.Fatalf("[WARN] UDP-сервер не запущен %s\n", err)
@@ -32,6 +36,6 @@ func main() {
 			log.Fatalln("[WARN Read UDP]")
 		}
 		//Обработка каждого запроса в отдельной горутине
-		go HandleRequest(conn, clientAddr, buf[:n], config.Forwarding[clientAddr.IP.String()])
+		go forwarder.HandleRequest(conn, clientAddr, buf[:n], Config.Forwarding[clientAddr.IP.String()])
 	}
 }
