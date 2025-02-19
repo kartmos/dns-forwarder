@@ -1,3 +1,4 @@
+//cspell:disable
 package forwarder
 
 import (
