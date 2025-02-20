@@ -17,6 +17,7 @@ func main() {
 
 	var Config forwarder.FrdConfig
 	forwarder.CheckConfig(&Config)
+	log.Println("[DONE] Set options from config file")
 
 	// Запуск UDP-сервера
 	addr := net.UDPAddr{Port: Config.Port}
@@ -28,6 +29,7 @@ func main() {
 	for {
 		buf := make([]byte, 512)
 		n, clientAddr, err := conn.ReadFromUDP(buf)
+		log.Printf("[Try] forwarding %v client's request to DNS root Server: %v...\n", clientAddr, Config.Forwarding[clientAddr.IP.String()])
 		if err != nil {
 			log.Fatalln("[WARN Read UDP]")
 		}

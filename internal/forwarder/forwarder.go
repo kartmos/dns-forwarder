@@ -30,7 +30,7 @@ func HandleRequest(conn *net.UDPConn, addr *net.UDPAddr, request []byte, dnsServ
 
 	// Отправка ответа клиенту
 	conn.WriteToUDP(response, addr)
-	log.Printf("[Done] Forward Client: %v -> Sever: %v\n\n", addr, dnsServer)
+	log.Printf("[Done] Forward Client: %v -> Sever: %v\n", addr, dnsServer)
 	return
 }
 
