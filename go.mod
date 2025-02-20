@@ -6,7 +6,6 @@ require (
 	github.com/fsnotify/fsnotify v1.8.0
 	github.com/miekg/dns v1.1.63
 	github.com/spf13/viper v1.19.0
-	golang.org/x/net v0.31.0
 )
 
 require (
@@ -25,6 +24,7 @@ require (
 	go.uber.org/multierr v1.9.0 // indirect
 	golang.org/x/exp v0.0.0-20230905200255-921286631fa9 // indirect
 	golang.org/x/mod v0.18.0 // indirect
+	golang.org/x/net v0.31.0 // indirect
 	golang.org/x/sync v0.9.0 // indirect
 	golang.org/x/sys v0.27.0 // indirect
 	golang.org/x/text v0.20.0 // indirect

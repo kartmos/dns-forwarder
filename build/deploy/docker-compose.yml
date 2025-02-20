@@ -1,0 +1,10 @@
+version: '3.8'
+
+services:
+  dns-forwarder:
+    image: go-forward
+    container_name: dns-forwarder
+    ports:
+      - "5360:5360/udp"
+    volumes:
+      - /home/username/projects/myapp/config.yaml:/app/config.yaml
