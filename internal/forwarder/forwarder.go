@@ -1,4 +1,3 @@
-//cspell:disable
 package forwarder
 
 import (
@@ -29,9 +28,11 @@ func HandleRequest(conn *net.UDPConn, addr *net.UDPAddr, request []byte, dnsServ
 	}
 
 	// Отправка ответа клиенту
-	conn.WriteToUDP(response, addr)
+	if _, err := conn.WriteToUDP(response, addr); err != nil {
+		log.Printf("[DO] Cancel response -> %s", err)
+		cancel()
+	}
 	log.Printf("[Done] Forward Client: %v -> Sever: %v\n", addr, dnsServer)
-	return
 }
 
 func CheckConfig(config *FrdConfig) {

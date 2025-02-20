@@ -1,4 +1,3 @@
-//cspell:disable
 package main
 
 import (
