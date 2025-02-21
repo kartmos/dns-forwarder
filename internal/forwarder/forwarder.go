@@ -19,7 +19,7 @@ type FrdConfig struct {
 func HandleRequest(conn *net.UDPConn, addr *net.UDPAddr, request []byte, dnsServer string) {
 	ctx, cancel := context.WithTimeout(context.Background(), 5*time.Second)
 	defer cancel()
-	// Перенаправление запроса на DNS-сервер
+
 	response, err := forwardToDNSServer(ctx, request, dnsServer)
 	if err != nil {
 		log.Printf("[DO] Cancel request -> %s", err)
@@ -27,7 +27,6 @@ func HandleRequest(conn *net.UDPConn, addr *net.UDPAddr, request []byte, dnsServ
 		return
 	}
 
-	// Отправка ответа клиенту
 	if _, err := conn.WriteToUDP(response, addr); err != nil {
 		log.Printf("[DO] Cancel response -> %s", err)
 		cancel()
@@ -56,7 +55,6 @@ func CheckConfig(config *FrdConfig) {
 		return
 	}
 
-	// Чтение конфигурации с помощью Viper
 	config.Port = viper.GetInt("port")
 	config.Forwarding = viper.GetStringMapString("forwarding")
 }
