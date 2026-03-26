@@ -6,6 +6,8 @@ services:
     container_name: dns-forwarder  
     ports:
       - "5360:5360/udp"
+      - "5360:5360/tcp"
+      - "8080:8080/tcp"
     volumes:
       - /Users/artemkalinin/Desktop/IT/dns-forwarder/config/config.yaml:/app/config/config.yaml
     restart: unless-stopped

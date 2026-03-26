@@ -1,36 +1,63 @@
 package main
 
 import (
+	"context"
 	"log"
-	"net"
+	"os/signal"
+	"syscall"
+	"time"
 
-	"github.com/kartmos/dns-forwarder.git/internal/forwarder"
-	"github.com/spf13/viper"
+	"github.com/kartmos/dns-forwarder.git/internal/config"
+	"github.com/kartmos/dns-forwarder.git/internal/handler"
+	"github.com/kartmos/dns-forwarder.git/internal/metrics"
+	"github.com/kartmos/dns-forwarder.git/internal/service"
+	"github.com/miekg/dns"
 )
 
-func init() {
-	viper.SetConfigFile("config/config.yaml")
-}
-
 func main() {
+	ctx, stop := signal.NotifyContext(context.Background(), syscall.SIGINT, syscall.SIGTERM)
+	defer stop()
 
-	var Config forwarder.FrdConfig
-	forwarder.CheckConfig(&Config)
-	log.Println("[DONE] Set options from config file")
-
-	addr := net.UDPAddr{Port: Config.Port}
-	conn, err := net.ListenUDP("udp", &addr)
+	configStore, err := config.NewStore("config/config.yaml")
 	if err != nil {
-		log.Fatalf("[WARN] Failed to start server %v: %s\n", addr.AddrPort(), err)
+		log.Fatalf("[WARN] failed to load config: %v", err)
 	}
-	log.Printf("UDP-server start on 127.0.0.1:%d", addr.Port)
-	for {
-		buf := make([]byte, 512)
-		n, clientAddr, err := conn.ReadFromUDP(buf)
-		if err != nil {
-			log.Fatalln("[WARN] Err with read UDP request from client")
+	log.Println("[DONE] config loaded")
+
+	forwarderService := service.NewForwarder(configStore)
+	cfg := configStore.Get()
+	rateLimiter := service.NewRateLimiter(cfg.RateLimitRPS, time.Second)
+	metricStore := metrics.New()
+	dnsHandler := handler.NewDNSHandler(forwarderService, rateLimiter, metricStore)
+
+	server := handler.NewServer(cfg.Port, dns.HandlerFunc(dnsHandler.HandleRequest))
+	httpServer := handler.NewHTTPServer(cfg.HealthPort, configStore, metricStore)
+
+	go func() {
+		if err := httpServer.Start(); err != nil {
+			log.Printf("[WARN] http server stopped: %v", err)
 		}
-		log.Printf("[Try] forwarding %v client's request to DNS root Server: %v...\n", clientAddr, Config.Forwarding[clientAddr.IP.String()])
-		go forwarder.HandleRequest(conn, clientAddr, buf[:n], Config.Forwarding[clientAddr.IP.String()])
+	}()
+
+	go func() {
+		<-ctx.Done()
+
+		shutdownCtx, cancel := context.WithTimeout(context.Background(), 5*time.Second)
+		defer cancel()
+
+		log.Println("[DONE] shutdown signal received")
+		if err := server.Shutdown(shutdownCtx); err != nil {
+			log.Printf("[WARN] shutdown error: %v", err)
+		}
+		if err := httpServer.Shutdown(shutdownCtx); err != nil {
+			log.Printf("[WARN] http shutdown error: %v", err)
+		}
+	}()
+
+	if err := server.Start(); err != nil {
+		if err == dns.ErrServerClosed {
+			return
+		}
+		log.Fatalf("[WARN] server stopped: %v", err)
 	}
 }

@@ -1,67 +1,236 @@
-<a id="readme-top"></a>
+# DNS Forwarder on Go
 
-<h1 align="center">DNS Forwarder</h1>
+Простой DNS forwarder на Go, который принимает DNS-запросы от клиента, выбирает upstream DNS-сервер по конфигу и пересылает запрос дальше.
 
-<p align="center">
-  A simple and efficient DNS forwarder written in Go!
-  <br />
-  <br />
-  <a href="https://github.com/kartmos/dns-forwarder/issues/new?labels=bug&template=bug-report.md">Report a Bug</a>
-  &middot;
-  <a href="https://github.com/kartmos/dns-forwarder/issues/new?labels=enhancement&template=feature-request.md">Request a Feature</a>
-</p>
+Проект сделан как учебный, но при этом в нём уже есть базовые практические вещи:
 
-<!-- TABLE OF CONTENTS -->
-<details>
-  <summary>Table of Contents</summary>
-  <ol>
-    <li><a href="#about-the-project">About the Project</a></li>
-    <li><a href="#features">Features</a></li>
-    <li><a href="#getting-started">Getting Started</a></li>
-    <li><a href="#usage">Usage</a></li>
-  </ol>
-</details>
+- запуск UDP и TCP DNS серверов;
+- пересылка запросов на upstream;
+- ограничение количества одновременных запросов;
+- конфигурация через `yaml`;
+- graceful shutdown;
+- перезагрузка конфига при изменении файла.
 
-<!-- ABOUT THE PROJECT -->
-## About the Project
+## Описание проекта
 
-DNS Forwarder is a simple and efficient DNS forwarder written in Go that redirects DNS queries to a specified DNS server. The project demonstrates the basics of working with network requests and the DNS protocol in Go. Key features include:
+Приложение слушает порт DNS-сервера, принимает запросы от клиентов и определяет, на какой upstream DNS отправить запрос. Выбор upstream зависит от IP клиента и задаётся в `config/config.yaml`.
 
-* UDP support
-* Configurable DNS server address
-* Request logging
-* Simple configuration
+Сценарий работы такой:
 
-<p align="right">(<a href="#readme-top">back to top</a>)</p>
+1. клиент отправляет DNS-запрос в forwarder;
+2. forwarder принимает запрос по UDP или TCP;
+3. из конфига выбирается upstream для IP клиента;
+4. запрос отправляется на upstream DNS;
+5. ответ возвращается клиенту.
 
-### Features
+Если upstream вернул усечённый ответ по UDP, сервис делает повторный запрос по TCP.
 
-- DNS query forwarding
-- UDP support
-- Configurable DNS server address
-- Request logging
-- Simple configuration
+## Архитектура
 
-<!-- GETTING STARTED -->
-## Getting Started
+Проект разделён на простые слои.
 
-### Prerequisites
+### `cmd/app`
 
-- Go 1.24.0+
-- Internet connection
+Точка входа приложения.
 
-### Installation
+Что делает:
 
-1. Clone the repository.
-2. Navigate to the project directory.
-3. Build the binary in the project's root folder.
+- загружает конфиг;
+- создаёт сервисы;
+- запускает DNS сервер;
+- обрабатывает сигналы остановки `SIGINT` и `SIGTERM`.
 
-<p align="right">(<a href="#readme-top">back to top</a>)</p>
+### `internal/config`
 
-<!-- USAGE -->
-## Usage with Docker-compose
+Слой конфигурации.
 
-```zsh
-docker-compose -f build/deploy/docker-compose.yml up -d
+Что делает:
+
+- читает `config/config.yaml`;
+- применяет простые значения по умолчанию;
+- валидирует конфиг;
+- хранит актуальную версию конфига;
+- следит за изменениями файла через `viper`.
+
+### `internal/service`
+
+Слой бизнес-логики.
+
+Что делает:
+
+- выбирает upstream по IP клиента;
+- пересылает DNS-запрос;
+- делает fallback с UDP на TCP при `Truncated`;
+- ограничивает количество одновременных запросов через semaphore.
+
+### `internal/handler`
+
+Слой обработки сетевых запросов.
+
+Что делает:
+
+- поднимает UDP и TCP серверы;
+- принимает DNS-запросы;
+- достаёт IP клиента;
+- вызывает `service`;
+- возвращает DNS-ответ клиенту.
+
+## Конфигурация
+
+Пример файла `config/config.yaml`:
+
+```yaml
+port: 5360
+timeout_seconds: 5
+workers: 50
+forwarding:
+  192.168.1.10: 8.8.8.8:53
+  192.168.1.20: 1.1.1.1:53
+  127.0.0.1: 1.1.1.1:53
+  192.168.65.1: 8.8.8.8:53
 ```
-<p align="right">(<a href="#readme-top">back to top</a>)</p> 
+
+Описание полей:
+
+- `port` - порт, на котором слушает DNS forwarder;
+- `timeout_seconds` - таймаут запроса к upstream DNS;
+- `workers` - максимальное число одновременных запросов;
+- `forwarding` - соответствие `client IP -> upstream DNS`.
+
+## Запуск локально
+
+Требования:
+
+- Go `1.24.0+`;
+- доступ к сети;
+- настроенный `config/config.yaml`.
+
+Сборка:
+
+```bash
+go build -o forward ./cmd/app
+```
+
+Запуск:
+
+```bash
+./forward
+```
+
+Если хочешь запустить без отдельной сборки:
+
+```bash
+go run ./cmd/app
+```
+
+## Запуск через Docker
+
+### Docker build
+
+```bash
+docker build -f build/deploy/Dockerfile -t dns-forwarder .
+```
+
+### Docker run
+
+```bash
+docker run --rm \
+  -p 5360:5360/udp \
+  -p 5360:5360/tcp \
+  -v $(pwd)/config/config.yaml:/app/config/config.yaml \
+  dns-forwarder
+```
+
+### Docker Compose
+
+```bash
+docker compose -f build/deploy/docker-compose.yml up --build
+```
+
+Важно: в `build/deploy/docker-compose.yml` сейчас указан абсолютный путь к `config.yaml`. Его нужно заменить на путь на твоей машине, если он отличается.
+
+## Concurrency
+
+В проекте concurrency используется в нескольких местах.
+
+### 1. Goroutines для серверов
+
+UDP и TCP серверы запускаются параллельно в отдельных goroutine. Благодаря этому приложение может одновременно принимать запросы по двум транспортам.
+
+### 2. Обработка нескольких клиентов
+
+Сама библиотека DNS обслуживает несколько запросов конкурентно. Это позволяет серверу не блокироваться на одном клиенте.
+
+### 3. Ограничение нагрузки через semaphore
+
+В слое `service` есть buffered channel:
+
+```go
+sem chan struct{}
+```
+
+Перед отправкой запроса на upstream сервис кладёт значение в канал, а после завершения работы забирает его обратно.
+
+Это даёт простой лимит на количество запросов в работе одновременно:
+
+- если свободное место есть, запрос обрабатывается;
+- если лимит достигнут, следующий запрос подождёт.
+
+Такой подход проще для понимания, чем worker pool, и хорошо подходит для junior-level реализации.
+
+### 4. Безопасная работа с конфигом
+
+Конфиг хранится с `sync.RWMutex`, поэтому:
+
+- несколько goroutine могут одновременно читать конфиг;
+- обновление конфига не ломает чтение во время обработки запросов.
+
+## Graceful Shutdown
+
+При получении сигнала остановки приложение:
+
+1. получает `SIGINT` или `SIGTERM`;
+2. создаёт context с таймаутом;
+3. останавливает UDP и TCP серверы;
+4. завершает работу без резкого обрыва процесса.
+
+Это полезно для Docker и для обычного запуска в терминале.
+
+## Пример использования
+
+Если forwarder слушает порт `5360`, можно отправлять DNS-запросы через него, например:
+
+```bash
+dig @127.0.0.1 -p 5360 google.com
+```
+
+Для TCP:
+
+```bash
+dig @127.0.0.1 -p 5360 google.com +tcp
+```
+
+## Что я изучил
+
+Во время разработки этого проекта я изучил:
+
+- как работает DNS forwarding;
+- как поднимать UDP и TCP серверы на Go;
+- как использовать библиотеку `github.com/miekg/dns`;
+- как разделять проект на `handler / service / config`;
+- как загружать и обновлять конфиг через `viper`;
+- как использовать `goroutines` для параллельной работы;
+- как ограничивать concurrency через semaphore;
+- как делать graceful shutdown через `context` и сигналы ОС;
+- как организовать простой, понятный и поддерживаемый Go-проект.
+
+## Возможные улучшения
+
+Что можно добавить дальше:
+
+- default upstream, если IP клиента не найден в конфиге;
+- метрики;
+- unit tests;
+- кеш DNS-ответов;
+- поддержка DoT или DoH;
+- более подробное логирование запросов.
