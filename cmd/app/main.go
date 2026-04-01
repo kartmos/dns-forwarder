@@ -55,9 +55,6 @@ func main() {
 	}()
 
 	if err := server.Start(); err != nil {
-		if err == dns.ErrServerClosed {
-			return
-		}
 		log.Fatalf("[WARN] server stopped: %v", err)
 	}
 }
